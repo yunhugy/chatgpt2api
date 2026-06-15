@@ -237,6 +237,8 @@ class OpenAIBackendAPI:
         headers["X-OpenAI-Target-Route"] = path
         if extra:
             headers.update(extra)
+        from services.proxy_service import proxy_settings
+        headers = dict(proxy_settings.build_headers(headers=headers, target_url=self.base_url, account=self.account, upstream=True))
         return headers
 
     @staticmethod
