@@ -35,10 +35,6 @@ services:
       # WARP_LICENSE_KEY: ${WARP_LICENSE_KEY:-}
     cap_add:
       - NET_ADMIN
-      - SYS_MODULE
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 0
-      net.ipv4.conf.all.src_valid_mark: 1
     ports:
       - "127.0.0.1:${WARP_SOCKS_PORT:-40000}:1080"
     healthcheck:
@@ -71,6 +67,7 @@ services:
     container_name: chatgpt2api-flaresolverr
     restart: unless-stopped
     environment:
+      PROXY_URL: http://privoxy:8118
       LOG_LEVEL: ${FLARESOLVERR_LOG_LEVEL:-info}
       TZ: ${TZ:-Asia/Shanghai}
     ports:
