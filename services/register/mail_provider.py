@@ -217,6 +217,8 @@ def _config(mail_config: dict) -> dict:
         "request_timeout": float(mail_config.get("request_timeout") or 30),
         "wait_timeout": float(mail_config.get("wait_timeout") or 30),
         "wait_interval": float(mail_config.get("wait_interval") or 2),
+        "fast_wait_seconds": float(mail_config.get("fast_wait_seconds") or 10),
+        "fast_wait_interval": float(mail_config.get("fast_wait_interval") or 0.8),
         "user_agent": str(mail_config.get("user_agent") or "Mozilla/5.0"),
         "proxy": str(mail_config.get("proxy") or "").strip(),
     }
@@ -376,14 +378,17 @@ class BaseMailProvider:
         self.provider_ref = provider_ref
 
     def wait_for(self, mailbox: dict[str, Any], on_message: Callable[[dict[str, Any]], ResultT | None]) -> ResultT | None:
-        deadline = time.monotonic() + self.conf["wait_timeout"]
+        started = time.monotonic()
+        deadline = started + self.conf["wait_timeout"]
         while time.monotonic() < deadline:
             message = self.fetch_latest_message(mailbox)
             if message:
                 result = on_message(message)
                 if result is not None:
                     return result
-            time.sleep(max(0.2, self.conf["wait_interval"]))
+            elapsed = time.monotonic() - started
+            interval = self.conf["fast_wait_interval"] if elapsed < self.conf["fast_wait_seconds"] else self.conf["wait_interval"]
+            time.sleep(max(0.2, interval))
         return None
 
     def wait_for_code(self, mailbox: dict[str, Any]) -> str | None:
@@ -685,10 +690,11 @@ class CloudMailGenProvider(BaseMailProvider):
         message = str(data.get("message") or "")
         if code == 200:
             account = data.get("data")
-            return account if isinstance(account, dict) else {}
+            result = account if isinstance(account, dict) else {}
+            return {**result, "_cloudmail_account_add_status": "created", "_cloudmail_account_add_message": message or "created"}
         if code == 501 and "already" in message.lower():
-            return {"already_registered": True}
-        raise RuntimeError(f"CloudMailGen account/add returned invalid response: {data}")
+            return {"already_registered": True, "_cloudmail_account_add_status": "already_registered", "_cloudmail_account_add_message": message}
+        raise RuntimeError(f"CloudMailGen account/add failed: code={code}, message={message}, response={data}")
 
     def _resolve_address(self, username: str | None = None) -> str:
         domain = _next_domain(self.domain)
@@ -711,6 +717,8 @@ class CloudMailGenProvider(BaseMailProvider):
             account = self._ensure_account(address)
             mailbox["account_id"] = str(account.get("accountId") or account.get("id") or "")
             mailbox["_cloudmail_account_added"] = not bool(account.get("already_registered"))
+            mailbox["_cloudmail_account_add_status"] = str(account.get("_cloudmail_account_add_status") or "")
+            mailbox["_cloudmail_account_add_message"] = str(account.get("_cloudmail_account_add_message") or "")
         return mailbox
 
     def fetch_latest_message(self, mailbox: dict[str, Any]) -> dict[str, Any] | None:
@@ -1410,7 +1418,8 @@ class OutlookTokenProvider(BaseMailProvider):
             mailbox["_seen_code_message_refs"] = seen_value
         seen_refs = {str(item) for item in seen_value}
 
-        deadline = time.monotonic() + self.conf["wait_timeout"]
+        started = time.monotonic()
+        deadline = started + self.conf["wait_timeout"]
         while time.monotonic() < deadline:
             for message in self.fetch_recent_messages(mailbox):
                 ref = _message_tracking_ref(message)
@@ -1421,7 +1430,9 @@ class OutlookTokenProvider(BaseMailProvider):
                     seen_value.append(ref)
                     return code
                 seen_refs.add(ref)
-            time.sleep(max(0.2, self.conf["wait_interval"]))
+            elapsed = time.monotonic() - started
+            interval = self.conf["fast_wait_interval"] if elapsed < self.conf["fast_wait_seconds"] else self.conf["wait_interval"]
+            time.sleep(max(0.2, interval))
         return None
 
 
