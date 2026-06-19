@@ -752,8 +752,11 @@ export async function updateRegisterConfig(updates: Partial<RegisterConfig>) {
   });
 }
 
-export async function startRegister() {
-  return httpRequest<{ register: RegisterConfig }>("/api/register/start", { method: "POST" });
+export async function startRegister(updates?: Partial<RegisterConfig>) {
+  return httpRequest<{ register: RegisterConfig }>("/api/register/start", {
+    method: "POST",
+    body: updates ?? {},
+  });
 }
 
 export async function stopRegister() {

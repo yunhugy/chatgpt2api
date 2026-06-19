@@ -996,19 +996,17 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     if (!registerConfig) return;
     set({ isSavingRegister: true });
     try {
-      if (!registerConfig.enabled) {
-        await updateRegisterConfig({
-          mail: registerConfig.mail,
-          proxy: registerConfig.proxy.trim(),
-          total: Math.max(1, Number(registerConfig.total) || 1),
-          threads: Math.max(1, Number(registerConfig.threads) || 1),
-          mode: registerConfig.mode,
-          target_quota: Math.max(1, Number(registerConfig.target_quota) || 1),
-          target_available: Math.max(1, Number(registerConfig.target_available) || 1),
-          check_interval: Math.max(1, Number(registerConfig.check_interval) || 5),
-        });
-      }
-      const data = registerConfig.enabled ? await stopRegister() : await startRegister();
+      const updates = {
+        mail: registerConfig.mail,
+        proxy: registerConfig.proxy.trim(),
+        total: Math.max(1, Number(registerConfig.total) || 1),
+        threads: Math.max(1, Number(registerConfig.threads) || 1),
+        mode: registerConfig.mode,
+        target_quota: Math.max(1, Number(registerConfig.target_quota) || 1),
+        target_available: Math.max(1, Number(registerConfig.target_available) || 1),
+        check_interval: Math.max(1, Number(registerConfig.check_interval) || 5),
+      };
+      const data = registerConfig.enabled ? await stopRegister() : await startRegister(updates);
       set({ registerConfig: data.register });
       toast.success(registerConfig.enabled ? "注册任务已停止" : "注册任务已启动");
     } catch (error) {

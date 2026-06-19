@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Body, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -40,8 +40,13 @@ def create_router() -> APIRouter:
         return {"register": register_service.update(body.model_dump(exclude_none=True))}
 
     @router.post("/api/register/start")
-    async def start_register(authorization: str | None = Header(default=None)):
+    async def start_register(
+        body: RegisterConfigRequest | None = Body(default=None),
+        authorization: str | None = Header(default=None),
+    ):
         require_admin(authorization)
+        if body is not None:
+            register_service.update(body.model_dump(exclude_none=True))
         return {"register": register_service.start()}
 
     @router.post("/api/register/stop")

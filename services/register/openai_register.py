@@ -211,7 +211,7 @@ def _is_cloudflare_challenge(resp) -> bool:
 
 
 def _mail_config() -> dict:
-    return {**config["mail"], "proxy": config["proxy"]}
+    return dict(config["mail"])
 
 
 def _authorize_landed_page(resp) -> str:
@@ -248,7 +248,13 @@ from utils.sentinel import SentinelTokenGenerator, build_sentinel_token as _buil
 
 def build_sentinel_token(session: requests.Session, device_id: str, flow: str) -> str:
     """请求 sentinel token，返回 sentinel header 字符串（兼容旧接口）。"""
-    sentinel_val, _oai_sc_val = _build_sentinel_token_tuple(session, device_id, flow, user_agent=user_agent, sec_ch_ua=sec_ch_ua)
+    sentinel_val, oai_sc_val = _build_sentinel_token_tuple(session, device_id, flow, user_agent=user_agent, sec_ch_ua=sec_ch_ua)
+    if oai_sc_val:
+        for domain in (".openai.com", "openai.com", ".auth.openai.com", "auth.openai.com"):
+            try:
+                session.cookies.set("oai-sc", oai_sc_val, domain=domain)
+            except Exception:
+                continue
     return sentinel_val
 
 
@@ -386,6 +392,7 @@ class PlatformRegistrar:
         self.device_id = str(uuid.uuid4())
         self.code_verifier = ""
         self.platform_auth_code = ""
+        self.otp_send_url = ""
 
     def close(self) -> None:
         self.session.close()
@@ -500,23 +507,86 @@ class PlatformRegistrar:
                 step(index, "注册失败提示: 邮箱域名很可能因滥用被封禁，请更换邮箱域名", "yellow")
             detail = f", detail={json.dumps(data, ensure_ascii=False)}" if data else ""
             raise RuntimeError(error or f"user_register_http_{getattr(resp, 'status_code', 'unknown')}{detail}")
+        # 记录注册响应体，帮助诊断邮件是否在 _register_user 阶段由服务端触发
+        try:
+            body = (resp.text or "")[:500] if resp is not None else ""
+            if body:
+                step(index, f"register_user 响应: {body}")
+        except Exception:
+            pass
+        # 从 continue_url 提取 otp_send URL（不拼 ?email=xxx，依赖服务端 session 状态）
+        data = _response_json(resp) if resp is not None else {}
+        self.otp_send_url = str(data.get("continue_url") or "").strip()
+        if self.otp_send_url and not self.otp_send_url.startswith("http"):
+            self.otp_send_url = ""
         step(index, "提交注册密码完成")
 
-    def _send_otp(self, index: int) -> None:
-        step(index, "开始发送验证码")
-        url = f"{auth_base}/api/accounts/email-otp/send"
-        headers = _headers_with_clearance(self._navigate_headers(f"{auth_base}/create-account/password"), url, self.proxy, self.clearance_user_agent)
+    def _send_otp_request(self, url: str, referer: str, *, navigate: bool, index: int):
+        headers = self._navigate_headers(referer) if navigate else self._json_headers(referer)
+        headers = _headers_with_clearance(headers, url, self.proxy, self.clearance_user_agent)
         resp, error = request_with_local_retry(self.session, "get", url, headers=headers, allow_redirects=True, verify=False)
         if _is_cloudflare_challenge(resp):
             bundle = self._refresh_cloudflare_clearance(auth_base, index)
             if bundle is None:
                 raise RuntimeError(_cloudflare_block_message(resp, reason=self.clearance_failure_reason))
-            headers = _headers_with_clearance(self._navigate_headers(f"{auth_base}/create-account/password"), url, self.proxy, self.clearance_user_agent)
+            headers = self._navigate_headers(referer) if navigate else self._json_headers(referer)
+            headers = _headers_with_clearance(headers, url, self.proxy, self.clearance_user_agent)
             resp, error = request_with_local_retry(self.session, "get", url, headers=headers, allow_redirects=True, verify=False)
             if _is_cloudflare_challenge(resp):
                 raise RuntimeError(_cloudflare_block_message(resp, "Cloudflare clearance 重试仍被拦截"))
         if resp is None or resp.status_code not in (200, 302):
             raise RuntimeError(error or f"send_otp_http_{getattr(resp, 'status_code', 'unknown')}")
+        data = _response_json(resp)
+        if isinstance(data, dict) and data.get("error"):
+            raise RuntimeError(f"send_otp_api_error: {data.get('error')}")
+        return resp
+
+    def _resend_otp_request(self, index: int):
+        url = f"{auth_base}/api/accounts/email-otp/resend"
+        headers = self._json_headers(f"{auth_base}/email-verification")
+        headers = _headers_with_clearance(headers, url, self.proxy, self.clearance_user_agent)
+        resp, error = request_with_local_retry(self.session, "post", url, headers=headers, allow_redirects=True, verify=False)
+        if _is_cloudflare_challenge(resp):
+            bundle = self._refresh_cloudflare_clearance(auth_base, index)
+            if bundle is None:
+                raise RuntimeError(_cloudflare_block_message(resp, reason=self.clearance_failure_reason))
+            headers = self._json_headers(f"{auth_base}/email-verification")
+            headers = _headers_with_clearance(headers, url, self.proxy, self.clearance_user_agent)
+            resp, error = request_with_local_retry(self.session, "post", url, headers=headers, allow_redirects=True, verify=False)
+            if _is_cloudflare_challenge(resp):
+                raise RuntimeError(_cloudflare_block_message(resp, "Cloudflare clearance 重试仍被拦截"))
+        if resp is None or resp.status_code not in (200, 204):
+            raise RuntimeError(error or f"resend_otp_http_{getattr(resp, 'status_code', 'unknown')}")
+        return resp
+
+    def _send_otp(self, index: int) -> None:
+        step(index, "开始发送验证码")
+        send_url = f"{auth_base}/api/accounts/email-otp/send"
+        resp = self._send_otp_request(send_url, f"{auth_base}/create-account/password", navigate=False, index=index)
+        data = _response_json(resp)
+        verification_url = str(data.get("continue_url") or "").strip()
+        urls = [send_url]
+        if self.otp_send_url and self.otp_send_url not in urls:
+            urls.append(self.otp_send_url)
+            try:
+                self._send_otp_request(self.otp_send_url, str(getattr(resp, "url", "") or send_url), navigate=True, index=index)
+            except Exception as error:
+                step(index, f"continue_url 落页失败，继续等待验证码: {error}", "yellow")
+        if verification_url.startswith("http") and verification_url not in urls:
+            urls.append(verification_url)
+            try:
+                landing = self._send_otp_request(verification_url, str(getattr(resp, "url", "") or send_url), navigate=True, index=index)
+                step(index, f"email_verification 落页: {_response_debug_detail(landing, limit=160)}")
+            except Exception as error:
+                step(index, f"email_verification 落页失败，继续等待验证码: {error}", "yellow")
+        try:
+            resent = self._resend_otp_request(index)
+            step(index, f"resend_otp 响应: {_response_debug_detail(resent, limit=200)}")
+        except Exception as error:
+            step(index, f"resend_otp 触发失败，继续等待验证码: {error}", "yellow")
+        debug = _response_debug_detail(resp, limit=300)
+        if debug:
+            step(index, f"send_otp 响应: {debug}")
         step(index, "发送验证码完成")
 
     def _validate_otp(self, code: str, index: int) -> None:
@@ -585,6 +655,15 @@ class PlatformRegistrar:
             step(index, "开始等待注册验证码")
             code = wait_for_code(mailbox)
             if not code:
+                if mailbox.get("provider") == "cloudmail_gen":
+                    raise RuntimeError(
+                        "wait_register_otp_timeout"
+                        f" (cloudmail_raw={mailbox.get('_cloudmail_last_raw_count', 'unknown')},"
+                        f" matched={mailbox.get('_cloudmail_last_matched_count', 'unknown')},"
+                        f" to={mailbox.get('_cloudmail_last_to', '')},"
+                        f" from={mailbox.get('_cloudmail_last_from', '')},"
+                        f" subject={mailbox.get('_cloudmail_last_subject', '')})"
+                    )
                 raise RuntimeError("等待注册验证码超时")
             step(index, f"收到注册验证码: {code}")
             self._validate_otp(code, index)

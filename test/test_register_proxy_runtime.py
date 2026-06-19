@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from services.proxy_service import ClearanceBundle
+from services.proxy_service import ClearanceBundle, ProxyRuntimeProfile
 from services.register import openai_register
 
 
@@ -36,8 +36,9 @@ class FakeSession:
 
 
 class FakeProxySettings:
-    def __init__(self, bundle=None):
+    def __init__(self, bundle=None, clearance_enabled=None):
         self.bundle = bundle
+        self.clearance_enabled = bool(bundle is not None if clearance_enabled is None else clearance_enabled)
         self.refreshed = False
         self.session_kwargs_calls = []
         self.build_headers_calls = []
@@ -46,6 +47,15 @@ class FakeProxySettings:
     def build_session_kwargs(self, **kwargs):
         self.session_kwargs_calls.append(kwargs)
         return dict(kwargs, proxy="http://runtime.example:8118")
+
+    def get_profile(self, **kwargs):
+        return ProxyRuntimeProfile(
+            proxy_url=str(kwargs.get("proxy") or ""),
+            proxy_source="explicit" if kwargs.get("proxy") else "direct",
+            runtime_enabled=self.clearance_enabled,
+            egress_mode="single_proxy",
+            clearance={"enabled": self.clearance_enabled, "mode": "flaresolverr", "timeout_sec": 60},
+        )
 
     def build_headers(self, headers=None, target_url="", proxy="", upstream=True, **kwargs):
         self.build_headers_calls.append({"target_url": target_url, "proxy": proxy, "upstream": upstream})
@@ -61,6 +71,23 @@ class FakeProxySettings:
 
 
 class RegisterProxyRuntimeTests(unittest.TestCase):
+    def test_mail_config_does_not_inherit_openai_register_proxy(self):
+        original = dict(openai_register.config)
+        try:
+            openai_register.config.update(
+                {
+                    "proxy": "http://openai-proxy.example:8080",
+                    "mail": {"request_timeout": 30, "wait_timeout": 30, "wait_interval": 2, "providers": []},
+                }
+            )
+
+            mail_config = openai_register._mail_config()
+        finally:
+            openai_register.config.clear()
+            openai_register.config.update(original)
+
+        self.assertNotIn("proxy", mail_config)
+
     def test_create_session_uses_proxy_settings_without_breaking_existing_proxy_argument(self):
         fake_proxy = FakeProxySettings()
         created = []
@@ -102,7 +129,7 @@ class RegisterProxyRuntimeTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Cloudflare") as ctx:
                 registrar._platform_authorize("user@example.com", 1)
 
-        self.assertEqual(len(fake_proxy.refresh_calls), 1)
+        self.assertEqual(len(fake_proxy.refresh_calls), 0)
         self.assertIn("status=403", str(ctx.exception))
         self.assertIn("Just a moment", str(ctx.exception))
 
@@ -161,7 +188,7 @@ class RegisterProxyRuntimeTests(unittest.TestCase):
         self.assertTrue(fake_proxy.refresh_calls[0]["force"])
 
     def test_refresh_failure_reports_cloudflare_detail_without_infinite_retry(self):
-        fake_proxy = FakeProxySettings(bundle=None)
+        fake_proxy = FakeProxySettings(bundle=None, clearance_enabled=True)
         cf_response = FakeResponse(
             status_code=403,
             text="<html><title>Just a moment...</title><body>challenge body</body></html>",
