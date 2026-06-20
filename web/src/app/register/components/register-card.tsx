@@ -417,7 +417,7 @@ export function RegisterCard() {
 
       </section>
 
-      <section className="flex min-h-0 flex-col p-4">
+      <section className="flex min-h-0 flex-col overflow-y-auto p-4">
         <div className="space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div>
