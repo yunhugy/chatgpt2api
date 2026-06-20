@@ -107,7 +107,7 @@ export function RegisterCard() {
           <div className="grid gap-2 border border-stone-200 bg-white/70 p-3 md:grid-cols-[1fr_auto_auto_auto_auto]">
             <Select value={selectedPreset || undefined} onValueChange={setSelectedPreset} disabled={config.enabled || presets.length === 0}>
               <SelectTrigger className="h-9 rounded-xl border-stone-200 bg-white">
-                <SelectValue placeholder="Select preset" />
+                <SelectValue placeholder="选择预设" />
               </SelectTrigger>
               <SelectContent>
                 {presets.map((name) => (
@@ -170,15 +170,15 @@ export function RegisterCard() {
               <Input value={String(config.check_interval || "")} onChange={(event) => setCheckInterval(event.target.value)} className="h-10 rounded-xl border-stone-200 bg-white" disabled={config.enabled || config.mode === "total"} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm text-stone-700">OTP resend</label>
+              <label className="text-sm text-stone-700">OTP 重发</label>
               <Select value={config.otp_resend || "after_delay"} onValueChange={(value) => setOtpResend(value as "always" | "after_delay" | "off")} disabled={config.enabled}>
                 <SelectTrigger className="h-10 rounded-xl border-stone-200 bg-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="after_delay">After delay</SelectItem>
-                  <SelectItem value="always">Always</SelectItem>
-                  <SelectItem value="off">Off</SelectItem>
+                  <SelectItem value="after_delay">延迟后重发</SelectItem>
+                  <SelectItem value="always">始终重发</SelectItem>
+                  <SelectItem value="off">关闭</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -447,40 +447,40 @@ export function RegisterCard() {
             </div>
             <div className="grid gap-2 border border-stone-200 bg-white/70 p-3 text-xs md:grid-cols-3">
               <div>
-                <div className="font-semibold text-stone-700">Avg stage time</div>
+                <div className="font-semibold text-stone-700">各阶段平均耗时</div>
                 <div className="mt-2 space-y-1 text-stone-500">
                   {stageEntries.length ? stageEntries.map(([key, value]) => (
                     <div key={key} className="flex justify-between gap-3">
                       <span>{key}</span>
                       <span className="font-mono text-stone-800">{value}ms</span>
                     </div>
-                  )) : <span>None</span>}
+                  )) : <span>无</span>}
                 </div>
               </div>
               <div>
-                <div className="font-semibold text-stone-700">Provider success</div>
+                <div className="font-semibold text-stone-700">邮箱服务商成功率</div>
                 <div className="mt-2 space-y-1 text-stone-500">
                   {providerSuccessEntries.length ? providerSuccessEntries.map(([key, value]) => (
                     <div key={key} className="flex justify-between gap-3">
                       <span>{key}</span>
                       <span className="font-mono text-stone-800">{value}</span>
                     </div>
-                  )) : <span>None</span>}
+                  )) : <span>无</span>}
                   <div className="flex justify-between gap-3">
-                    <span>OTP avg wait</span>
+                    <span>OTP 平均等待</span>
                     <span className="font-mono text-stone-800">{stats.otp_wait_avg_seconds || 0}s</span>
                   </div>
                 </div>
               </div>
               <div>
-                <div className="font-semibold text-stone-700">Recent failure stage</div>
+                <div className="font-semibold text-stone-700">最近失败阶段</div>
                 <div className="mt-2 space-y-1 text-stone-500">
                   {errorEntries.length ? errorEntries.slice(-4).map(([key, value]) => (
                     <div key={key}>
                       <span className="font-mono text-rose-600">{key}</span>
                       <span className="ml-2 break-all">{value}</span>
                     </div>
-                  )) : <span>None</span>}
+                  )) : <span>无</span>}
                 </div>
               </div>
             </div>

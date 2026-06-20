@@ -30,7 +30,7 @@
       "browser": "chrome",
       "flaresolverr_url": "http://flaresolverr:8191",
       "timeout_sec": 60,
-      "refresh_interval": 3600,
+      "refresh_interval": 60,
       "warm_up_on_start": true
     }
   },
