@@ -67,7 +67,7 @@ services:
     container_name: chatgpt2api-flaresolverr
     restart: unless-stopped
     environment:
-      PROXY_URL: http://privoxy:8118
+      PROXY_URL: socks5://172.18.0.1:1080
       LOG_LEVEL: ${FLARESOLVERR_LOG_LEVEL:-info}
       TZ: ${TZ:-Asia/Shanghai}
     ports:
