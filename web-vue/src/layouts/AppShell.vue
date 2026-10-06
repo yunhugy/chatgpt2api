@@ -817,7 +817,6 @@ const menuItems: NavigationItem[] = [
     capability: 'admin_console',
   },
   {
-  {
     path: '/register',
     label: '注册账号',
     icon: 'M7 3h10a2 2 0 0 1 2 2v3h-2V5H7v14h10v-3h2v3a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm8.6 5.4L20.2 13l-4.6 4.6-1.4-1.4 2.2-2.2H9v-2h7.4l-2.2-2.2 1.4-1.4z',
