@@ -32,6 +32,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
 
 export const settingsTabs: SettingsSelectOption[] = [
   { value: 'basic', label: '基础配置' },
+  { value: 'proxy', label: '代理与清障' },
   { value: 'storage', label: '图片存储与审核' },
   { value: 'prompts', label: '提示词源' },
   { value: 'backup', label: 'R2 备份' },

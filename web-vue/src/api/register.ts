@@ -91,6 +91,8 @@ export type LegacyRegisterConfig = {
   target_quota: number
   target_available: number
   check_interval: number
+  proxy_url?: string
+  proxy_refresh_interval?: number
   enabled: boolean
   stats?: {
     success?: number

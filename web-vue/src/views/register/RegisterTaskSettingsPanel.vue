@@ -110,6 +110,36 @@
       </div>
     </FormSection>
 
+    <FormSection title="注册代理池" density="roomy">
+      <div class="register-form-grid">
+        <label class="register-field register-field--full">
+          <span class="register-label">订阅地址</span>
+          <Input
+            v-model.trim="config.proxy_url"
+            block
+            root-class="font-mono"
+            placeholder="/data/proxy-repo/user_regpool01.txt 或 https://example.com/pool.txt"
+            :disabled="config.enabled"
+          />
+        </label>
+
+        <label class="register-field">
+          <span class="register-label">刷新间隔（秒）</span>
+          <Input
+            v-model.number="config.proxy_refresh_interval"
+            type="number"
+            min="30"
+            block
+            :disabled="config.enabled"
+          />
+        </label>
+
+        <p class="register-proxy-hint register-field--full">
+          每个注册任务按轮换顺序从这里取出口，失败 2 次自动拉黑；留空则不启用代理池，回退到上方「注册代理」设置。
+        </p>
+      </div>
+    </FormSection>
+
     <FormSection title="邮箱请求" density="roomy">
       <div class="register-form-grid register-form-grid--mail">
         <label class="register-field">

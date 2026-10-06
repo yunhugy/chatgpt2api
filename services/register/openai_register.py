@@ -19,7 +19,7 @@ from curl_cffi import requests
 from services.account_service import account_service
 from services.json_file import read_json_object
 from services.proxy_service import ClearanceBundle, proxy_settings
-from services.register import mail_provider
+from services.register import mail_provider, proxy_pool
 from utils.timezone import TIME_FORMAT, beijing_now_str
 
 base_dir = Path(__file__).resolve().parent
@@ -1241,9 +1241,11 @@ class PlatformRegistrar:
 
 def worker(index: int) -> dict:
     start = time.time()
-    registrar = PlatformRegistrar(config["proxy"])
+    # 每个任务独立取池中出口；池空时保留显式配置的兼容回退。
+    proxy = proxy_pool.next_proxy() or str(config.get("proxy") or "").strip()
+    registrar = PlatformRegistrar(proxy)
     try:
-        step(index, "任务启动")
+        step(index, "任务启动，已分配注册代理" if proxy else "任务启动，未配置代理，使用直连")
         result = registrar.register(index)
         cost = time.time() - start
         access_token = str(result["access_token"])
@@ -1255,6 +1257,7 @@ def worker(index: int) -> dict:
             stats["done"] += 1
             stats["success"] += 1
             avg = (time.time() - stats["start_time"]) / stats["success"]
+        proxy_pool.report(proxy, True)
         log(f'{result["email"]} 注册成功，本次耗时{cost:.1f}s，全局平均每个号注册耗时{avg:.1f}s', "green")
         return {"ok": True, "index": index, "result": result}
     except Exception as e:
@@ -1262,6 +1265,7 @@ def worker(index: int) -> dict:
         with stats_lock:
             stats["done"] += 1
             stats["fail"] += 1
+        proxy_pool.report(proxy, False)
         log(f"任务{index} 注册失败，本次耗时{cost:.1f}s，原因: {e}", "red")
         return {"ok": False, "index": index, "error": str(e)}
     finally:

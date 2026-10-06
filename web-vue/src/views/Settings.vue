@@ -80,6 +80,12 @@
         </div>
       </div>
 
+      <SettingsProxyRuntimePanel
+        v-else-if="activeSettingsTab === 'proxy'"
+        :settings="localSettings"
+        :fields="settingsFields"
+      />
+
       <SettingsStorageReviewPanel
         v-else-if="activeSettingsTab === 'storage'"
         :settings="localSettings"
@@ -313,6 +319,7 @@ import {
 import SettingsBasicConfigPanel from '@/views/settings/SettingsBasicConfigPanel.vue'
 import SettingsDashboardPreferencesPanel from '@/views/settings/SettingsDashboardPreferencesPanel.vue'
 import SettingsBasicPolicyPanel from '@/views/settings/SettingsBasicPolicyPanel.vue'
+import SettingsProxyRuntimePanel from '@/views/settings/SettingsProxyRuntimePanel.vue'
 import SettingsBackupPanel from '@/views/settings/SettingsBackupPanel.vue'
 import SettingsExternalSourceModals from '@/views/settings/SettingsExternalSourceModals.vue'
 import SettingsExternalSourcesPanel from '@/views/settings/SettingsExternalSourcesPanel.vue'

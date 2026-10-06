@@ -131,6 +131,8 @@ export const defaultRegisterConfig: LegacyRegisterConfig = {
   target_quota: 100,
   target_available: 10,
   check_interval: 5,
+  proxy_url: '',
+  proxy_refresh_interval: 300,
   enabled: false,
   stats: {
     success: 0,
@@ -402,6 +404,8 @@ export function legacyRegisterPayload(config: LegacyRegisterConfig): Partial<Leg
     target_quota: Math.max(1, Number(config.target_quota) || 1),
     target_available: Math.max(1, Number(config.target_available) || 1),
     check_interval: Math.max(1, Number(config.check_interval) || 5),
+    proxy_url: String(config.proxy_url || '').trim(),
+    proxy_refresh_interval: Math.max(30, Number(config.proxy_refresh_interval) || 300),
   }
 }
 

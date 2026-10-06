@@ -20,6 +20,8 @@ class RegisterConfigRequest(BaseModel):
     target_quota: int | None = None
     target_available: int | None = None
     check_interval: int | None = None
+    proxy_url: str | None = None
+    proxy_refresh_interval: int | None = None
 
 
 class OutlookPoolResetRequest(BaseModel):
