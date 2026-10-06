@@ -36,6 +36,12 @@ export const appRoutes: RouteRecordRaw[] = [
         meta: { requiredCapability: 'admin_console' },
       },
       {
+        path: 'register',
+        name: 'register',
+        component: () => import('@/views/Register.vue'),
+        meta: { requiredCapability: 'admin_console' },
+      },
+      {
         path: 'proxy',
         name: 'proxy',
         component: () => import('@/views/Proxy.vue'),
