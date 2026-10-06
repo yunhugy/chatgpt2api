@@ -221,7 +221,10 @@ def _fingerprint_with_user_agent(fingerprint: dict[str, str] | None, value: str)
 
 
 def _make_browser_fingerprint() -> dict[str, str]:
-    return _complete_browser_fingerprint(secrets.choice(REGISTER_BROWSER_PROFILES))
+    # 固定使用通过率最高的指纹（chrome142），不再随机挑选：
+    # 实测同一批代理打 auth.openai.com，chrome142 通过 19/31、chrome131 7/31、chrome136 仅 1/31，
+    # 随机挑选会让约三分之二的任务在 Cloudflare 判定上先输一截。
+    return _complete_browser_fingerprint(REGISTER_BROWSER_PROFILES[0])
 
 
 def log(text: str, color: str = "") -> None:
