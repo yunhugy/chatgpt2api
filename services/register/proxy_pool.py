@@ -1,12 +1,18 @@
 """注册代理池（订阅式）：从本地文件或 URL 拉取代理列表，按任务轮换使用。
 
-适配 yukkcat/chatgpt2api v2.7.1-rc.3 注册机（新增模块，挂载注入）。
+来源支持：
+- 本地文件路径（推荐，容器内挂载只读）
+- file:// URL
+- http(s) URL（后台线程按 refresh_interval 定时刷新，刷新失败保留旧列表）
 
-特性：
-- 来源支持：本地文件路径（推荐，容器内挂载只读）、file:// URL、http(s) URL
-- 后台线程按 refresh_interval 定时刷新；刷新失败保留旧列表
-- 线程安全；next_proxy() 循环轮换
-- 模块级函数接口：init_proxy_pool() / next_proxy() / status()
+调度策略（按实测质量分档轮换）：
+- 已验证档：成功过且没有失败记录的出口，优先复用
+- 未使用档：还没跑过任务的出口
+- 风险档：失败过的出口（失败 1 次即降权，退到未使用档之后）
+- 同一 host 失败 2 次进入黑名单，不再分配；成功后清零并解除黑名单
+- 全部出口都被拉黑时清空黑名单重新轮换，并打印醒目告警 + 计数（避免静默空转）
+
+线程安全；模块级函数接口：init_proxy_pool() / next_proxy() / status() / report()
 """
 from __future__ import annotations
 
@@ -37,6 +43,12 @@ def _host_of(proxy: str) -> str:
     return text
 
 
+# 分档：数值越小越优先
+TIER_VERIFIED = 0  # 成功过，无失败记录
+TIER_FRESH = 1  # 未使用过
+TIER_RISKY = 2  # 失败过（降权）
+
+
 class ProxyPool:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -48,7 +60,7 @@ class ProxyPool:
         self._last_error = ""
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
-        self._fail_counts: dict[str, int] = {}
+        self._stats: dict[str, dict[str, int]] = {}
         self._blacklist: set[str] = set()
         self._exhausted_rounds = 0
 
@@ -94,21 +106,34 @@ class ProxyPool:
         self._ensure_thread()
         return count
 
-    # ---------- 消费 ----------
+    # ---------- 调度 ----------
+    def _tier(self, host: str) -> int:
+        stat = self._stats.get(host)
+        if stat and stat.get("ok", 0) > 0 and stat.get("fail", 0) == 0:
+            return TIER_VERIFIED
+        if not stat:
+            return TIER_FRESH
+        return TIER_RISKY
+
     def next_proxy(self) -> str:
         with self._lock:
             total = len(self._proxies)
             if not total:
                 return ""
-            for _ in range(total):
-                proxy = self._proxies[self._index % total]
-                self._index += 1
-                if _host_of(proxy) not in self._blacklist:
+            # 从当前游标开始扫，按档位优先挑第一个可用的出口（档内仍是轮换）
+            for tier in (TIER_VERIFIED, TIER_FRESH, TIER_RISKY):
+                for offset in range(total):
+                    proxy = self._proxies[(self._index + offset) % total]
+                    if _host_of(proxy) in self._blacklist:
+                        continue
+                    if self._tier(_host_of(proxy)) != tier:
+                        continue
+                    self._index = (self._index + offset + 1) % total
                     return proxy
-            # 极端情况：全部 IP 被拉黑 —— 清空黑名单重新开始，保证注册机不停摆。
+            # 极端情况：全部出口被拉黑 —— 清空黑名单重新开始，保证注册机不停摆。
             # 但这通常意味着代理源整体失效，必须留下醒目告警，避免静默空转烧额度。
             self._blacklist.clear()
-            self._fail_counts.clear()
+            self._stats.clear()
             self._exhausted_rounds += 1
             print(
                 f"[proxy-pool] ⚠️ 代理池 {total} 条全部被拉黑，已清空黑名单重新轮换"
@@ -116,11 +141,15 @@ class ProxyPool:
                 flush=True,
             )
             proxy = self._proxies[self._index % total]
-            self._index += 1
+            self._index = (self._index + 1) % total
             return proxy
 
     def report(self, proxy: str, ok: bool) -> None:
-        """注册任务实测反馈（IP 级）：失败累计 2 次拉黑整个 IP，同 IP 全端口一锅端。"""
+        """注册任务实测反馈（IP 级）。
+
+        成功：清零失败记录并解除拉黑，该出口升入「已验证」档优先复用。
+        失败：累计失败次数，失败 1 次即降权到「风险」档，累计 2 次拉黑整个 IP。
+        """
         proxy = str(proxy or "").strip()
         if not proxy:
             return
@@ -128,13 +157,20 @@ class ProxyPool:
         if not host:
             return
         with self._lock:
+            stat = self._stats.setdefault(host, {"ok": 0, "fail": 0})
             if ok:
+                stat["ok"] = stat.get("ok", 0) + 1
+                stat["fail"] = 0
+                self._blacklist.discard(host)
                 return
-            count = self._fail_counts.get(host, 0) + 1
-            self._fail_counts[host] = count
-            if count >= 2 and host not in self._blacklist:
+            stat["fail"] = stat.get("fail", 0) + 1
+            if stat["fail"] >= 2 and host not in self._blacklist:
                 self._blacklist.add(host)
-                print(f"[proxy-pool] 已拉黑失败 IP: {host}（累计失败 {count} 次，同 IP 全端口一锅端）", flush=True)
+                print(
+                    f"[proxy-pool] 已拉黑失败 IP: {host}"
+                    f"（累计失败 {stat['fail']} 次，同 IP 全端口一锅端）",
+                    flush=True,
+                )
 
     def size(self) -> int:
         with self._lock:
@@ -142,6 +178,18 @@ class ProxyPool:
 
     def status(self) -> dict:
         with self._lock:
+            verified = fresh = risky = 0
+            for proxy in self._proxies:
+                host = _host_of(proxy)
+                if host in self._blacklist:
+                    continue
+                tier = self._tier(host)
+                if tier == TIER_VERIFIED:
+                    verified += 1
+                elif tier == TIER_FRESH:
+                    fresh += 1
+                else:
+                    risky += 1
             return {
                 "source": self._source,
                 "size": len(self._proxies),
@@ -150,7 +198,11 @@ class ProxyPool:
                 "last_error": self._last_error,
                 "interval": self._interval,
                 "blacklist": len(self._blacklist),
-                "fail_counts": len(self._fail_counts),
+                "tracked": len(self._stats),
+                "failed": sum(1 for s in self._stats.values() if s.get("fail", 0) > 0),
+                "verified": verified,
+                "fresh": fresh,
+                "risky": risky,
                 "exhausted_rounds": self._exhausted_rounds,
             }
 
@@ -182,7 +234,7 @@ def init_proxy_pool(proxy_url: str = "", refresh_interval: int = 300) -> int:
 
 
 def next_proxy() -> str:
-    """取下一个代理（循环轮换）；池为空时返回空字符串。"""
+    """取下一个代理（按质量分档轮换）；池为空时返回空字符串。"""
     return _POOL.next_proxy()
 
 
@@ -191,5 +243,5 @@ def status() -> dict:
 
 
 def report(proxy: str, ok: bool) -> None:
-    """任务结果反馈：成功清零；失败累计（2 次自动拉黑）。"""
+    """任务结果反馈：成功升档并清零；失败降权，2 次拉黑。"""
     _POOL.report(proxy, ok)
