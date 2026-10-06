@@ -50,6 +50,7 @@ class ProxyPool:
         self._thread: threading.Thread | None = None
         self._fail_counts: dict[str, int] = {}
         self._blacklist: set[str] = set()
+        self._exhausted_rounds = 0
 
     # ---------- 加载 ----------
     def _read_text(self) -> str:
@@ -104,9 +105,16 @@ class ProxyPool:
                 self._index += 1
                 if _host_of(proxy) not in self._blacklist:
                     return proxy
-            # 极端情况：全部 IP 被拉黑 —— 清空黑名单重新开始，保证注册机不停摆
+            # 极端情况：全部 IP 被拉黑 —— 清空黑名单重新开始，保证注册机不停摆。
+            # 但这通常意味着代理源整体失效，必须留下醒目告警，避免静默空转烧额度。
             self._blacklist.clear()
             self._fail_counts.clear()
+            self._exhausted_rounds += 1
+            print(
+                f"[proxy-pool] ⚠️ 代理池 {total} 条全部被拉黑，已清空黑名单重新轮换"
+                f"（第 {self._exhausted_rounds} 次）；池子可能已整体失效，请检查代理源",
+                flush=True,
+            )
             proxy = self._proxies[self._index % total]
             self._index += 1
             return proxy
@@ -143,6 +151,7 @@ class ProxyPool:
                 "interval": self._interval,
                 "blacklist": len(self._blacklist),
                 "fail_counts": len(self._fail_counts),
+                "exhausted_rounds": self._exhausted_rounds,
             }
 
     # ---------- 后台刷新 ----------

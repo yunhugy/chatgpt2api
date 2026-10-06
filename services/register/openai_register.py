@@ -1243,8 +1243,10 @@ def worker(index: int) -> dict:
     start = time.time()
     # 每个任务独立取池中出口；池空时保留显式配置的兼容回退。
     proxy = proxy_pool.next_proxy() or str(config.get("proxy") or "").strip()
-    registrar = PlatformRegistrar(proxy)
+    registrar: PlatformRegistrar | None = None
     try:
+        # 构造放进 try：代理不可用时同样要计入失败反馈，否则坏代理攒不满失败次数、会被反复分配。
+        registrar = PlatformRegistrar(proxy)
         step(index, "任务启动，已分配注册代理" if proxy else "任务启动，未配置代理，使用直连")
         result = registrar.register(index)
         cost = time.time() - start
@@ -1269,4 +1271,5 @@ def worker(index: int) -> dict:
         log(f"任务{index} 注册失败，本次耗时{cost:.1f}s，原因: {e}", "red")
         return {"ok": False, "index": index, "error": str(e)}
     finally:
-        registrar.close()
+        if registrar is not None:
+            registrar.close()
