@@ -19,7 +19,7 @@ from curl_cffi import requests
 from services.account_service import account_service
 from services.json_file import read_json_object
 from services.proxy_service import ClearanceBundle, proxy_settings
-from services.register import mail_provider, proxy_pool
+from services.register import mail_provider
 from utils.timezone import TIME_FORMAT, beijing_now_str
 
 base_dir = Path(__file__).resolve().parent
@@ -32,19 +32,13 @@ config = {
         "providers": [],
     },
     "proxy": "",
-    "proxy_url": "",
-    "proxy_refresh_interval": 300,
     "total": 10,
     "threads": 3,
 }
 register_config_file = base_dir.parents[1] / "data" / "register.json"
 try:
     saved_config = read_json_object(register_config_file, name="register.json")
-    config.update({
-        key: saved_config[key]
-        for key in ("mail", "proxy", "total", "threads", "proxy_url", "proxy_refresh_interval")
-        if key in saved_config
-    })
+    config.update({key: saved_config[key] for key in ("mail", "proxy", "total", "threads") if key in saved_config})
 except Exception:
     pass
 
@@ -1247,9 +1241,7 @@ class PlatformRegistrar:
 
 def worker(index: int) -> dict:
     start = time.time()
-    register_proxy = proxy_pool.next_proxy() or str(config.get("proxy") or "").strip()
-    print(f"[proxy-pool] 任务{index} 出口: {register_proxy or '直连'}", flush=True)
-    registrar = PlatformRegistrar(register_proxy)
+    registrar = PlatformRegistrar(config["proxy"])
     try:
         step(index, "任务启动")
         result = registrar.register(index)
@@ -1264,7 +1256,6 @@ def worker(index: int) -> dict:
             stats["success"] += 1
             avg = (time.time() - stats["start_time"]) / stats["success"]
         log(f'{result["email"]} 注册成功，本次耗时{cost:.1f}s，全局平均每个号注册耗时{avg:.1f}s', "green")
-        proxy_pool.report(register_proxy, True)
         return {"ok": True, "index": index, "result": result}
     except Exception as e:
         cost = time.time() - start
@@ -1272,8 +1263,6 @@ def worker(index: int) -> dict:
             stats["done"] += 1
             stats["fail"] += 1
         log(f"任务{index} 注册失败，本次耗时{cost:.1f}s，原因: {e}", "red")
-        if any(k in str(e) for k in ("Cloudflare", "timed out", "Connection")):
-            proxy_pool.report(register_proxy, False)
         return {"ok": False, "index": index, "error": str(e)}
     finally:
         registrar.close()
