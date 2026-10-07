@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v3.2.3-111827" alt="Version v3.2.3" />
+  <img src="https://img.shields.io/badge/version-v3.2.3.6-111827" alt="Version v3.2.3.6" />
   <img src="https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white" alt="Python 3.13" />
   <img src="https://img.shields.io/badge/Vue-3-4FC08D?logo=vue.js&logoColor=white" alt="Vue 3" />
   <img src="https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL 18" />
@@ -20,12 +20,22 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/yukkcat/chatgpt2api/releases/tag/v3.2.3">v3.2.3 Release</a>
+  <a href="https://github.com/yunhugy/chatgpt2api/releases">Release</a>
   · <a href="./CHANGELOG.md">Changelog</a>
   · <a href="./docs/README.md">Documentation</a>
 </p>
 
-<p align="center"><strong>QQ Group: 1005859624</strong></p>
+> [!NOTE]
+> This repository is a fork of [yukkcat/chatgpt2api](https://github.com/yukkcat/chatgpt2api) that adds **automated account registration** and **proxy scheduling** for self-hosted deployments.
+>
+> Key differences from upstream:
+>
+> - **Registrar**: built-in account auto-registration in the console, with total / quota / available top-up modes, concurrency control, and a consecutive-failure circuit breaker.
+> - **Registration proxy pool**: registration tasks rotate egress from a subscription source and schedule by measured quality — proven exits are reused first, one failure demotes, two failures blacklist the whole IP.
+> - **Proxy and clearance**: a settings panel for runtime proxy and Cloudflare clearance (FlareSolverr / manual cookie), with connectivity tests and runtime status.
+> - **Fingerprint alignment**: the registrar pins the browser fingerprint with the highest measured pass rate, and proxy filtering uses the same fingerprint.
+>
+> Container image: `ghcr.io/yunhugy/chatgpt2api:latest` (upstream: `ghcr.io/yukkcat/chatgpt2api`).
 
 > [!IMPORTANT]
 > `v3.0.0` is a new release baseline. The remote `main` history has been consolidated, and older source history, Git tags, releases, and container images are no longer maintained as part of the current release line. Version 3.0 uses a new Application Database and cannot read the distributed storage used by 2.x directly. Reconfigure the service or re-import accounts after upgrading.
@@ -40,7 +50,7 @@
 ### One-click installer
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yukkcat/chatgpt2api/main/deploy/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/yunhugy/chatgpt2api/main/deploy/install.sh | sudo bash
 ```
 
 The installer lets you choose SQLite, a local PostgreSQL 18 container, or an existing PostgreSQL URL. SQLite requires no additional service. Local PostgreSQL is started and persisted automatically through Compose.
@@ -48,7 +58,7 @@ The installer lets you choose SQLite, a local PostgreSQL 18 container, or an exi
 To install the fixed `v3.2.3` release:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yukkcat/chatgpt2api/v3.2.3/deploy/install.sh | sudo bash -s -- --branch v3.2.3
+curl -fsSL https://raw.githubusercontent.com/yunhugy/chatgpt2api/v3.2.3.6/deploy/install.sh | sudo bash -s -- --branch v3.2.3.6
 ```
 
 ### Docker Compose
@@ -56,7 +66,7 @@ curl -fsSL https://raw.githubusercontent.com/yukkcat/chatgpt2api/v3.2.3/deploy/i
 SQLite is used by default:
 
 ```bash
-git clone https://github.com/yukkcat/chatgpt2api.git
+git clone https://github.com/yunhugy/chatgpt2api.git
 cd chatgpt2api
 cp .env.example .env
 # Edit .env and set a private CHATGPT2API_AUTH_KEY
@@ -104,6 +114,9 @@ Shared UI components, themes, and interaction primitives come from [yukkcat/nano
 | 🔑 | Credentials and quotas | Separate AT/RT states, RT-based AT renewal, plan and quota synchronization, pinned-account text/image tests, and invalid-account handling |
 | ⚙️ | Scheduling and concurrency | Multi-account selection, account-processing concurrency, per-account image concurrency, parallel images, account switching, quotas, and rate-limit state |
 | 🌐 | Proxy egress | Account and account-group proxies, multi-egress proxy groups, per-node image concurrency, rotation, default and fallback egress, and connectivity checks |
+| 🤖 | Registrar | Built-in account auto-registration with total / quota / available top-up modes, concurrency, and a consecutive-failure circuit breaker |
+| 🎛️ | Registration proxy pool | Registration tasks rotate egress from a subscription source and schedule by measured quality: proven exits first, one failure demotes, two failures blacklist the IP |
+| 🛡️ | Proxy and clearance | Runtime proxy, Cloudflare clearance (FlareSolverr / manual cookie), connectivity and clearance tests, and runtime status |
 | 📊 | Logs and monitoring | Persisted call records, active requests, recent and slow requests, account switches, egress details, image stage timelines, and raw upstream diagnostics |
 | 🖼️ | Images and files | Local/WebDAV storage, gallery, tags, thumbnails, downloads, ZIP archives, compression, cleanup, PPT/PSD artifacts, and optional image upscaling |
 | ✨ | Prompt library | Local prompt assets, cloud-source synchronization, categorized selection, and source health |
@@ -240,19 +253,21 @@ Code derived from [basketikun/chatgpt2api](https://github.com/basketikun/chatgpt
 
 ## Project Contributors
 
-<a href="https://github.com/yukkcat/chatgpt2api/graphs/contributors">
-  <img alt="ChatGPT2API Contributors" src="https://contrib.rocks/image?repo=yukkcat/chatgpt2api" />
+<a href="https://github.com/yunhugy/chatgpt2api/graphs/contributors">
+  <img alt="ChatGPT2API Contributors" src="https://contrib.rocks/image?repo=yunhugy/chatgpt2api" />
 </a>
 
 ## Original Project and Contributors
 
-This project evolved from [basketikun/chatgpt2api](https://github.com/basketikun/chatgpt2api). Thanks to the original author and all contributors:
+This project evolved from [yukkcat/chatgpt2api](https://github.com/yukkcat/chatgpt2api), which itself builds on [basketikun/chatgpt2api](https://github.com/basketikun/chatgpt2api). Thanks to the authors and all contributors of both projects:
 
+<a href="https://github.com/yukkcat/chatgpt2api/graphs/contributors">
+  <img alt="Contributors" src="https://contrib.rocks/image?repo=yukkcat/chatgpt2api" />
+</a>
 <a href="https://github.com/basketikun/chatgpt2api/graphs/contributors">
   <img alt="Contributors" src="https://contrib.rocks/image?repo=basketikun/chatgpt2api" />
 </a>
 
-## Community and Links
+## Community
 
-- QQ group: [1005859624](https://qm.qq.com/q/yegwCqJisS)
-- Community: [Linux.do](https://linux.do)
+- [Linux.do](https://linux.do)

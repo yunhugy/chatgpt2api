@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v3.2.3-111827" alt="Version v3.2.3" />
+  <img src="https://img.shields.io/badge/version-v3.2.3.6-111827" alt="Version v3.2.3.6" />
   <img src="https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white" alt="Python 3.13" />
   <img src="https://img.shields.io/badge/Vue-3-4FC08D?logo=vue.js&logoColor=white" alt="Vue 3" />
   <img src="https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL 18" />
@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/yukkcat/chatgpt2api/releases/tag/v3.2.3">v3.2.3 Release</a>
+  <a href="https://github.com/yunhugy/chatgpt2api/releases">Release</a>
   · <a href="./CHANGELOG.md">更新说明</a>
   · <a href="./docs/README.md">维护文档</a>
 </p>
@@ -33,41 +33,32 @@
 >
 > 使用者须自行了解技术、账号与合规风险，遵守 OpenAI 服务条款及当地法律法规。严禁用于批量滥用、恶意竞争、账号盗用、诈骗、骚扰，以及生成或传播违法、暴力、色情或涉及未成年人的内容；使用者自行承担全部风险与责任。
 
-<p align="center">
-  <a href="https://qm.qq.com/q/yegwCqJisS">QQ 交流群：1005859624</a>
-  &nbsp;&nbsp;·&nbsp;&nbsp; <a href="https://pay.ldxp.cn/shop/yukkcat">购买生图账号</a>
-  &nbsp;&nbsp;·&nbsp;&nbsp; <a href="https://api.klong.lat">生图 API：小量 ¥0.02/张 · 中转 ¥0.01/张 · 大量/企业 ¥0.009/张</a>
-</p>
-
-## 赞助商
-
-<table width="100%">
-  <tr>
-    <td align="center" valign="middle">
-      <a href="https://www.ipwo.net/?ref=githubchatgpt2api"><img src="docs/images/IPWO.png" width="100%" alt="IPWO住宅代理"></a>
-    </td>
-  </tr>
-  <tr>
-    <td valign="middle">
-      &nbsp;<strong><a href="https://www.ipwo.net/?ref=githubchatgpt2api"><u>IPWO</u></a></strong>&nbsp;覆盖195+地区动态住宅代理、静态住宅代理和不限量住宅代理支持HTTP、HTTPS及SOCKS5协议，为AI应用、多账号管理、自动化及海外网络访问提供灵活的代理解决方案。专属折扣码：<strong>0205</strong>
-    </td>
-  </tr>
-</table>
+> [!NOTE]
+> 本仓库是 [yukkcat/chatgpt2api](https://github.com/yukkcat/chatgpt2api) 的 fork，面向自托管场景补齐了**自动化注册**与**代理调度**能力。
+>
+> 与上游的主要差异：
+>
+> - **注册机**：控制台内置账号自动注册，支持总量 / 额度 / 可用数三种补号模式，含并发线程与连续失败熔断保护。
+> - **注册代理池**：注册任务自动从订阅地址轮换出口，按实测质量分档调度 —— 成功过的出口优先复用，失败一次即降权，失败两次拉黑整个 IP。
+> - **代理与清障**：设置页可配置运行时代理与 Cloudflare 清障（支持 FlareSolverr / 手动 Cookie），并提供连通性测试与运行状态展示。
+> - **指纹对齐**：注册机固定使用实测通过率最高的浏览器指纹，代理筛选标准与之保持一致。
+>
+> 容器镜像：`ghcr.io/yunhugy/chatgpt2api:latest`（上游为 `ghcr.io/yukkcat/chatgpt2api`）。
 
 ## 快速部署
 
 ### 一键安装
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yukkcat/chatgpt2api/main/deploy/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/yunhugy/chatgpt2api/main/deploy/install.sh | sudo bash
 ```
 
 安装时可选择 SQLite、本地 PostgreSQL 18 容器或已有 PostgreSQL URL。SQLite 无需额外配置；本地 PostgreSQL 由 Compose 自动启动并持久化。
 
-固定安装 `v3.2.3`：
+固定安装 `v3.2.3.6`：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yukkcat/chatgpt2api/v3.2.3/deploy/install.sh | sudo bash -s -- --branch v3.2.3
+curl -fsSL https://raw.githubusercontent.com/yunhugy/chatgpt2api/v3.2.3.6/deploy/install.sh | sudo bash -s -- --branch v3.2.3.6
 ```
 
 ### Docker Compose
@@ -75,7 +66,7 @@ curl -fsSL https://raw.githubusercontent.com/yukkcat/chatgpt2api/v3.2.3/deploy/i
 默认使用 SQLite：
 
 ```bash
-git clone https://github.com/yukkcat/chatgpt2api.git
+git clone https://github.com/yunhugy/chatgpt2api.git
 cd chatgpt2api
 cp .env.example .env
 # 编辑 .env，为 CHATGPT2API_AUTH_KEY 设置私有密钥
@@ -119,6 +110,9 @@ DATABASE_URL=postgresql://user:password@host:5432/database
 |   🔑   | 凭证与额度 | 独立展示 AT / RT 状态，支持 RT 刷新 AT、同步套餐与额度、指定账号文本/画图测试和异常账号处置                    |
 |   ⚙️   | 调度与并发 | 多账号选择、账号处理并发、单账号图片并发、多图并行、失败换号、额度与限流状态管理                               |
 |   🌐   | 代理出口   | 账号代理、账号组代理、多出口代理组、节点图片并发、轮换间隔、默认出口、备用出口和连通性检测                     |
+|   🤖   | 注册机     | 控制台内置账号自动注册，支持总量 / 额度 / 可用数三种补号模式、并发线程与连续失败熔断保护                       |
+|   🎛️   | 注册代理池 | 注册任务按订阅地址轮换出口，按实测质量分档调度：成功过的优先复用、失败降权、失败两次拉黑整个 IP                 |
+|   🛡️   | 代理与清障 | 运行时代理、Cloudflare 清障（FlareSolverr / 手动 Cookie）、连通性与清障测试、运行状态展示                       |
 |   📊   | 日志与监控 | 调用日志、活跃请求、最近完成、慢请求、账号切换、出口信息、图片阶段时间线和原始上游诊断                         |
 |   🖼️   | 图片与文件 | 本地 / WebDAV 存储、图库、标签、缩略图、下载、ZIP、压缩、清理、PPT / PSD 产物和可选图片放大                    |
 |   ✨   | 提示词库   | 本地提示词资产、云端来源同步、分类选择和更新状态管理                                                           |
@@ -255,19 +249,21 @@ npm run dev
 
 ## 本项目贡献者
 
-<a href="https://github.com/yukkcat/chatgpt2api/graphs/contributors">
-  <img alt="ChatGPT2API Contributors" src="https://contrib.rocks/image?repo=yukkcat/chatgpt2api" />
+<a href="https://github.com/yunhugy/chatgpt2api/graphs/contributors">
+  <img alt="ChatGPT2API Contributors" src="https://contrib.rocks/image?repo=yunhugy/chatgpt2api" />
 </a>
 
 ## 原版项目与贡献者
 
-本项目基于 [basketikun/chatgpt2api](https://github.com/basketikun/chatgpt2api) 演进。感谢原项目作者与所有贡献者：
+本项目基于 [yukkcat/chatgpt2api](https://github.com/yukkcat/chatgpt2api) 演进，后者源自 [basketikun/chatgpt2api](https://github.com/basketikun/chatgpt2api)。感谢两个项目的作者与所有贡献者：
 
+<a href="https://github.com/yukkcat/chatgpt2api/graphs/contributors">
+  <img alt="Contributors" src="https://contrib.rocks/image?repo=yukkcat/chatgpt2api" />
+</a>
 <a href="https://github.com/basketikun/chatgpt2api/graphs/contributors">
   <img alt="Contributors" src="https://contrib.rocks/image?repo=basketikun/chatgpt2api" />
 </a>
 
-## 社区与友链
+## 社区
 
-- QQ 交流群：[1005859624](https://qm.qq.com/q/yegwCqJisS)
-- 社区：[Linux.do](https://linux.do)
+- [Linux.do](https://linux.do)
