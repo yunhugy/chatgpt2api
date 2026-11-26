@@ -25,16 +25,20 @@ from services.protocol import (
     openai_v1_response,
     openai_search,
 )
-from utils.helper import has_response_image_generation_tool, is_image_chat_request
+from services.protocol.conversation import validate_image_output_request
+from utils.helper import has_response_image_generation_tool, is_image_chat_request, parse_image_count
 
 
 class ImageGenerationRequest(BaseModel):
     prompt: str = Field(..., min_length=1)
     model: str = "gpt-image-2"
-    n: int = Field(default=1, ge=1, le=4)
+    n: int = Field(default=1, ge=1)
     size: str | None = None
     quality: str = "auto"
     response_format: str = "b64_json"
+    output_format: str | None = None
+    frame_count: object = None
+    frame_duration_ms: object = None
     history_disabled: bool = True
     stream: bool | None = None
 
@@ -138,7 +142,12 @@ def create_router() -> APIRouter:
     ):
         identity = require_identity(authorization)
         payload = body.model_dump(mode="python")
+        payload["n"] = parse_image_count(body.n)
+        for field in ("output_format", "frame_count", "frame_duration_ms"):
+            if field not in body.model_fields_set:
+                payload.pop(field, None)
         payload["base_url"] = resolve_image_base_url(request)
+        validate_image_output_request(body.model, body.output_format, stream=bool(body.stream))
         call = LoggedCall(identity, "/v1/images/generations", body.model, "文生图", request_text=body.prompt)
         attach_trace_headers(call, request)
         call.attach_trace_metadata(payload)
@@ -154,6 +163,12 @@ def create_router() -> APIRouter:
         payload, image_sources, mask_sources = await parse_image_edit_request(request)
         prompt = str(payload["prompt"])
         model = str(payload["model"])
+        validate_image_output_request(
+            model,
+            payload.get("output_format"),
+            stream=bool(payload.get("stream")),
+            has_references=True,
+        )
         call = LoggedCall(identity, "/v1/images/edits", model, "图生图", request_text=prompt)
         attach_trace_headers(call, request)
         call.attach_trace_metadata(payload)
@@ -168,6 +183,9 @@ def create_router() -> APIRouter:
     async def create_chat_completion(body: ChatCompletionRequest, request: Request, authorization: str | None = Header(default=None)):
         identity = require_identity(authorization)
         payload = body.model_dump(mode="python")
+        for key in ("output_format", "frame_count", "frame_duration_ms"):
+            if key not in body.model_fields_set:
+                payload.pop(key, None)
         payload["base_url"] = resolve_image_base_url(request)
         model = str(payload.get("model") or "auto")
         request_preview = request_text(payload.get("prompt"), payload.get("messages"))

@@ -75,6 +75,7 @@ export interface Settings {
   image_poll_initial_wait_secs: number
   image_poll_interval_secs: number
   image_account_concurrency: number
+  image_max_n: number
   account_processing_concurrency: number
   image_account_retry_enabled: boolean
   image_upscale_enabled: boolean
@@ -83,6 +84,7 @@ export interface Settings {
   image_remove_conversation_after_result: boolean
   image_settle_enabled: boolean
   image_settle_secs: number
+  gif_models: string[]
   auto_remove_invalid_accounts: boolean
   auto_remove_rate_limited_accounts: boolean
   log_levels: string[]

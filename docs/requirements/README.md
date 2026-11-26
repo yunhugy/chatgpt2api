@@ -29,7 +29,10 @@ requirements may move to `archive/` after links and this index are updated.
 
 ## Active requirements
 
-No active PRDs are currently tracked.
+- [`0002-account-memory-controls.md`](0002-account-memory-controls.md) — memory
+  state filtering and single/batch controls (`pending-verification`).
+- [`0001-image-gif-output.md`](0001-image-gif-output.md) — GIF/SVG output and
+  gpt-image-2.6 compatibility (`implementing`).
 
 PRDs are planning evidence, never proof that the product already behaves as
 described.

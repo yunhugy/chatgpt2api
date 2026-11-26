@@ -149,6 +149,49 @@
                     />
                   </div>
                   <div class="studio-size-section">
+                    <div class="studio-size-label">输出格式</div>
+                    <GroupedSelectMenu
+                      v-model="imageOutputFormatValue"
+                      :options="imageOutputFormatOptions"
+                      selected-indicator="none"
+                      block
+                    />
+                  </div>
+                  <div v-if="props.imageGifEnabled && props.imageForm.outputFormat === 'gif'" class="studio-size-section">
+                    <div class="studio-size-label">GIF 参数</div>
+                    <p class="studio-format-hint">帧数和帧间隔仅在选择 GIF 输出时生效。</p>
+                    <div class="studio-frame-fields">
+                      <label class="studio-frame-field">
+                        <span>帧数</span>
+                        <Input
+                          :model-value="imageFrameCountValue"
+                          type="text"
+                          inputmode="numeric"
+                          autocomplete="off"
+                          placeholder="可选"
+                          :disabled="isSending"
+                          block
+                          root-class="studio-frame-input"
+                          @update:model-value="imageFrameCountValue = String($event)"
+                        />
+                      </label>
+                      <label class="studio-frame-field">
+                        <span>帧间隔（毫秒）</span>
+                        <Input
+                          :model-value="imageFrameDurationMsValue"
+                          type="text"
+                          inputmode="numeric"
+                          autocomplete="off"
+                          placeholder="可选"
+                          :disabled="isSending"
+                          block
+                          root-class="studio-frame-input"
+                          @update:model-value="imageFrameDurationMsValue = String($event)"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  <div class="studio-size-section">
                     <div class="studio-size-label">质量</div>
                     <div class="studio-choice-grid is-quality">
                       <Button
@@ -168,7 +211,7 @@
                     <div class="studio-size-label">数量</div>
                     <div class="studio-choice-grid is-count">
                       <Button
-                        v-for="option in IMAGE_COUNT_OPTIONS"
+                        v-for="option in imageCountOptions(props.imageMaxN)"
                         :key="option.value"
                         size="sm"
                         :variant="imageForm.n === option.value ? 'primary' : 'outline'"
@@ -179,6 +222,25 @@
                         {{ option.label }}
                       </Button>
                     </div>
+                    <label class="studio-count-field">
+                      <span>自定义数量</span>
+                      <Input
+                        :model-value="imageCountDraft"
+                        type="number"
+                        inputmode="numeric"
+                        min="1"
+                        :max="props.imageMaxN"
+                        step="1"
+                        aria-label="图片数量"
+                        :disabled="isSending"
+                        block
+                        root-class="studio-count-input"
+                        @update:model-value="imageCountDraft = String($event)"
+                        @blur="commitImageCount"
+                        @keydown.enter.stop.prevent="commitImageCount"
+                      />
+                    </label>
+                    <p class="studio-size-current">可填写 1–{{ props.imageMaxN }} 张，上限可在系统设置中调整。</p>
                   </div>
                   <div class="studio-size-section">
                     <div class="studio-size-label">比例</div>
@@ -277,15 +339,16 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Button } from 'nanocat-ui'
+import { Button, Input } from 'nanocat-ui'
 import type { ActionMenuItem } from 'nanocat-ui'
 import FloatingActionMenu from '@/components/ai/FloatingActionMenu.vue'
 import { GroupedSelectMenu } from 'nanocat-ui'
 import StudioToolbarSelectButton from '@/components/studio/StudioToolbarSelectButton.vue'
 import {
   DEFAULT_IMAGE_SIZE,
-  IMAGE_COUNT_OPTIONS,
+  imageCountOptions,
   IMAGE_QUALITY_OPTIONS,
+  normalizeImageCount,
   formatImageSizeLabel,
   resolveImageSizePresets,
   type ImageSizeResolution,
@@ -307,6 +370,8 @@ const props = defineProps<{
   chatModelOptions: string[]
   imageModelOptions: string[]
   imageHighResolutionEnabled: boolean
+  imageGifEnabled: boolean
+  imageMaxN: number
   references: StudioReference[]
   isSending: boolean
   isStreaming: boolean
@@ -323,6 +388,9 @@ const emit = defineEmits<{
   'update:imageSize': [size: string]
   'update:imageQuality': [quality: string]
   'update:imageCount': [count: number]
+  'update:imageOutputFormat': [format: string]
+  'update:imageFrameCount': [value: string]
+  'update:imageFrameDurationMs': [value: string]
   submit: []
   stop: []
   'cancel-edit': []
@@ -341,6 +409,7 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const settingsAnchorRef = ref<HTMLElement | null>(null)
 const isDragging = ref(false)
 const settingsOpen = ref(false)
+const imageCountDraft = ref(String(props.imageForm.n))
 let textareaResizeFrame = 0
 let composerResizeObserver: ResizeObserver | null = null
 
@@ -398,6 +467,30 @@ const imageModelValue = computed({
   set: (value: string | string[]) => emit('update:imageModel', String(Array.isArray(value) ? value[0] : value || '')),
 })
 
+const imageOutputFormatValue = computed({
+  get: () => props.imageForm.outputFormat || 'auto',
+  set: (value: string | string[]) => {
+    const next = String(Array.isArray(value) ? value[0] : value || 'auto')
+    emit('update:imageOutputFormat', next === 'auto' ? '' : next)
+  },
+})
+
+const imageFrameCountValue = computed({
+  get: () => props.imageForm.frameCount,
+  set: (value: string) => emit('update:imageFrameCount', value),
+})
+
+const imageFrameDurationMsValue = computed({
+  get: () => props.imageForm.frameDurationMs,
+  set: (value: string) => emit('update:imageFrameDurationMs', value),
+})
+
+function commitImageCount(event: Event) {
+  const count = Math.min(props.imageMaxN, normalizeImageCount(imageCountDraft.value))
+  imageCountDraft.value = String(count)
+  emit('update:imageCount', count)
+}
+
 const chatModelSelectOptions = computed(() => props.chatModelOptions.map((model) => ({
   label: model === 'auto' ? '自动模型' : model,
   value: model,
@@ -415,6 +508,15 @@ const imageModelSelectOptions = computed(() => props.imageModelOptions.map((mode
   label: model,
   value: model,
 })))
+
+const imageOutputFormatOptions = computed(() => [
+  { label: '自动', value: 'auto' },
+  { label: 'PNG', value: 'png' },
+  { label: 'JPG', value: 'jpeg' },
+  { label: 'WebP', value: 'webp' },
+  ...(props.imageGifEnabled ? [{ label: 'GIF', value: 'gif' }] : []),
+  ...(props.imageGifEnabled && !props.references.length ? [{ label: 'SVG', value: 'svg' }] : []),
+])
 
 const sizePresets = computed(() => resolveImageSizePresets(props.imageHighResolutionEnabled))
 const selectedPreset = computed(() => sizePresets.value.find((preset) => preset.value === props.imageForm.size))
@@ -436,6 +538,9 @@ const resolutionOptions = computed(() => {
   return order.filter((value) => values.has(value)).map((value) => ({ label: value === 'auto' ? '自动' : value, value }))
 })
 const selectedSizeDetailLabel = computed(() => formatImageSizeLabel(props.imageForm.size))
+const selectedImageOutputFormatLabel = computed(() => (
+  imageOutputFormatOptions.value.find((option) => option.value === imageOutputFormatValue.value)?.label || '自动'
+))
 const canAttachReferences = computed(() => props.mode === 'image' || props.mode === 'chat' || props.mode === 'file')
 const selectedChatModelLabel = computed(() => chatModelSelectOptions.value.find((option) => option.value === props.chatModel)?.label || props.chatModel || '自动模型')
 const selectedReasoningEffortLabel = computed(() => {
@@ -476,8 +581,21 @@ const chatSettingsMenuItems = computed<ComposerMenuItem[]>(() => [
 ])
 const imageSummaryLabel = computed(() => {
   const count = props.imageForm.n > 1 ? ` · ${props.imageForm.n} 张` : ''
-  return `${formatImageSizeLabel(props.imageForm.size)}${count}`
+  const format = selectedImageOutputFormatLabel.value !== '自动'
+    ? ` · ${selectedImageOutputFormatLabel.value}`
+    : ''
+  return `${formatImageSizeLabel(props.imageForm.size)}${format}${count}`
 })
+watch(() => props.imageForm.n, (count) => {
+  imageCountDraft.value = String(count)
+})
+watch(
+  [() => props.imageForm.outputFormat, () => props.imageGifEnabled, () => props.references.length],
+  ([format, gifEnabled, referenceCount]) => {
+    if (format === 'gif' && !gifEnabled) emit('update:imageOutputFormat', '')
+    if (format === 'svg' && (!gifEnabled || referenceCount > 0)) emit('update:imageOutputFormat', '')
+  },
+)
 const imagePlaceholder = computed(() => props.references.length ? '描述你想如何修改参考图' : '输入你想生成的画面，也可以粘贴或拖入参考图')
 const chatPlaceholder = computed(() => props.references.length ? '描述你想让模型识别或分析的图片' : '输入消息，Enter 发送，Shift+Enter 换行')
 const filePlaceholder = computed(() => {
@@ -644,8 +762,10 @@ function isImageFile(file: File) {
 
 function handleOutsideClick(event: MouseEvent) {
   if (!settingsOpen.value) return
-  const target = event.target as Node
+  const target = event.target
+  if (!(target instanceof Element)) return
   if (settingsAnchorRef.value?.contains(target)) return
+  if (target.closest('.grouped-select-menu')) return
   closeFloatingMenus()
 }
 
@@ -1048,6 +1168,13 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
+.studio-format-hint {
+  margin: -0.2rem 0 0.55rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
 .studio-choice-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1062,10 +1189,43 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.studio-count-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.55rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+}
+
+.studio-count-input {
+  text-align: center;
+}
+
 .studio-size-current {
   margin-top: 0.5rem;
   color: hsl(var(--muted-foreground));
   font-size: 0.75rem;
+}
+
+.studio-frame-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.studio-frame-field {
+  display: grid;
+  min-width: 0;
+  gap: 0.35rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.studio-frame-input {
+  font-weight: 500;
 }
 
 .studio-drop-overlay {
@@ -1134,6 +1294,10 @@ onBeforeUnmount(() => {
   .studio-choice-grid,
   .studio-choice-grid.is-ratio {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .studio-frame-fields {
+    grid-template-columns: 1fr;
   }
 
   .chat-input {

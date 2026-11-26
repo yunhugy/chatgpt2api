@@ -17,6 +17,8 @@ from fastapi import HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
+from utils.helper import parse_image_count
+
 ImageInput = tuple[bytes, str, str]
 ImageSource = str | UploadFile | ImageInput
 
@@ -57,14 +59,8 @@ def _parse_bool(value: object) -> bool | None:
 
 
 def _parse_count(value: object) -> int:
-    """解析生成数量：保持图片接口的 1 到 4 限制。"""
-    try:
-        count = int(value or 1)
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail={"error": "n must be an integer"}) from exc
-    if count < 1 or count > 4:
-        raise HTTPException(status_code=400, detail={"error": "n must be between 1 and 4"})
-    return count
+    """解析生成数量：使用设置中的最小值 1 和最大值。"""
+    return parse_image_count(value)
 
 
 def _payload_from_fields(fields: dict[str, Any]) -> dict[str, Any]:
@@ -81,6 +77,9 @@ def _payload_from_fields(fields: dict[str, Any]) -> dict[str, Any]:
         "response_format": _clean(fields.get("response_format"), "b64_json"),
         "stream": _parse_bool(fields.get("stream")),
     }
+    for field in ("output_format", "frame_count", "frame_duration_ms"):
+        if field in fields:
+            payload[field] = fields[field]
     if "client_task_id" in fields:
         payload["client_task_id"] = _clean(fields.get("client_task_id"))
     return payload
@@ -195,7 +194,10 @@ async def parse_image_edit_request(request: Request) -> tuple[dict[str, Any], li
 
     form = await request.form()
     fields: dict[str, Any] = {}
-    for key in ("client_task_id", "prompt", "model", "n", "size", "quality", "response_format", "stream"):
+    for key in (
+        "client_task_id", "prompt", "model", "n", "size", "quality",
+        "response_format", "output_format", "frame_count", "frame_duration_ms", "stream",
+    ):
         value = form.get(key)
         if isinstance(value, str):
             fields[key] = value

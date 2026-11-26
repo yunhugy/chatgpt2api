@@ -1,4 +1,5 @@
 import base64
+import binascii
 import hashlib
 import json
 import mimetypes
@@ -17,12 +18,16 @@ from curl_cffi.requests.models import STREAM_END
 from fastapi import HTTPException
 from services.proxy_service import proxy_settings
 from utils.log import logger
+from utils.svg import svg_dimensions
 
 WEB_IMAGE_MODELS = (
     "gpt-image-2",
     "gpt-image-2.5",
     "gpt-image-2.5-flare",
     "gpt-image-2.5-sunburst",
+    "gpt-image-2.6",
+    "gpt-image-2.6-flare",
+    "gpt-image-2.6-sunburst",
 )
 BASE_IMAGE_MODELS = {*WEB_IMAGE_MODELS, "codex-gpt-image-2"}
 IMAGE_MODEL_PLAN_TYPES = ("plus", "team", "pro")
@@ -646,12 +651,19 @@ def extract_chat_prompt(body: dict[str, object]) -> str:
 
 
 def parse_image_count(raw_value: object) -> int:
+    from services.config import config
+
+    missing = raw_value is None or (isinstance(raw_value, str) and not raw_value.strip())
     try:
-        value = int(raw_value or 1)
+        value = 1 if missing else int(raw_value)
     except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail={"error": "n must be an integer"}) from exc
-    if value < 1 or value > 4:
-        raise HTTPException(status_code=400, detail={"error": "n must be between 1 and 4"})
+    maximum = config.image_max_n
+    if value < 1 or value > maximum:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": f"n must be between 1 and {maximum}"},
+        )
     return value
 
 
@@ -667,5 +679,15 @@ def build_chat_image_markdown_content(image_result: dict[str, object]) -> str:
             continue
         b64_json = str(item.get("b64_json") or "").strip()
         if b64_json:
-            markdown_images.append(f"![image_{index}](data:image/png;base64,{b64_json})")
+            mime_type = str(item.get("mime_type") or "").strip() or "image/png"
+            if mime_type == "image/png":
+                try:
+                    payload = base64.b64decode(b64_json, validate=True)
+                    if payload.startswith((b"GIF87a", b"GIF89a")):
+                        mime_type = "image/gif"
+                    elif svg_dimensions(payload) is not None:
+                        mime_type = "image/svg+xml"
+                except (ValueError, binascii.Error):
+                    pass
+            markdown_images.append(f"![image_{index}](data:{mime_type};base64,{b64_json})")
     return "\n\n".join(markdown_images) if markdown_images else "Image generation completed."

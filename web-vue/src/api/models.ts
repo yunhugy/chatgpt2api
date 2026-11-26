@@ -15,6 +15,8 @@ export interface ModelCatalogResponse {
   capabilities: {
     image_upscale: boolean
     high_resolution_image_models: string[]
+    gif_models?: string[]
+    image_max_n?: number
   }
   source: {
     chat: 'config' | 'accounts' | 'fallback'

@@ -51,6 +51,9 @@ export interface CreateGenerationTaskInput {
   n?: number
   size?: string
   quality?: string
+  outputFormat?: string
+  frameCount?: unknown
+  frameDurationMs?: unknown
   clientTaskId?: string
 }
 
@@ -182,6 +185,11 @@ export const IMAGE_COUNT_OPTIONS = [
   { label: '4 张', value: 4 },
 ]
 
+export function imageCountOptions(maxCount?: number) {
+  const max = Number.isFinite(Number(maxCount)) ? Math.max(1, Math.trunc(Number(maxCount))) : 4
+  return IMAGE_COUNT_OPTIONS.filter((option) => option.value <= max)
+}
+
 function cleanString(value: unknown, fallback = '') {
   const text = String(value ?? '').trim()
   return text || fallback
@@ -189,7 +197,7 @@ function cleanString(value: unknown, fallback = '') {
 
 export function normalizeImageCount(value: unknown) {
   const count = Number.isFinite(Number(value)) ? Math.trunc(Number(value)) : 1
-  return Math.min(4, Math.max(1, count))
+  return Math.max(1, count)
 }
 
 export function createClientTaskId(prefix = 'img') {
@@ -275,7 +283,6 @@ function parseImageTask(value: unknown, path = 'response'): ImageTask {
     ? raw.results.map((asset, index) => parseTaskAsset(asset, `${path}.results[${index}]`))
     : imageTaskContractError(`${path}.results`, 'array')
   const requestedCount = expectInteger(raw.requested_count, `${path}.requested_count`, 1)
-  if (requestedCount > 4) imageTaskContractError(`${path}.requested_count`, 'integer between 1 and 4')
   const succeededCount = expectInteger(raw.succeeded_count, `${path}.succeeded_count`)
   const failedCount = expectInteger(raw.failed_count, `${path}.failed_count`)
   const pendingCount = expectInteger(raw.pending_count, `${path}.pending_count`)
@@ -341,6 +348,9 @@ function createEditForm(input: CreateEditTaskInput) {
   form.append('quality', input.quality || DEFAULT_IMAGE_QUALITY)
   const size = requestSize(input.size)
   if (size) form.append('size', size)
+  if (input.outputFormat) form.append('output_format', input.outputFormat)
+  if (input.frameCount !== undefined) form.append('frame_count', String(input.frameCount))
+  if (input.frameDurationMs !== undefined) form.append('frame_duration_ms', String(input.frameDurationMs))
 
   const imageUrls = normalizeUrlList(input.imageUrls)
   if (imageUrls.length === 1) {
@@ -373,14 +383,18 @@ export const imageTasksApi = {
   },
 
   createGeneration: async (input: CreateGenerationTaskInput) => {
-    const response = await apiClient.post<Record<string, unknown>, unknown>('/api/image-tasks/generations', {
+    const body: Record<string, unknown> = {
       client_task_id: input.clientTaskId || createClientTaskId('gen'),
       prompt: input.prompt,
       model: input.model || DEFAULT_IMAGE_MODEL,
       n: normalizeImageCount(input.n),
       size: requestSize(input.size),
       quality: input.quality || DEFAULT_IMAGE_QUALITY,
-    })
+    }
+    if (input.outputFormat) body.output_format = input.outputFormat
+    if (input.frameCount !== undefined) body.frame_count = input.frameCount
+    if (input.frameDurationMs !== undefined) body.frame_duration_ms = input.frameDurationMs
+    const response = await apiClient.post<Record<string, unknown>, unknown>('/api/image-tasks/generations', body)
     return parseImageTask(response)
   },
 

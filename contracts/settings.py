@@ -191,6 +191,7 @@ class _SettingsEditableFields(_StrictModel):
     image_poll_initial_wait_secs: float = _numeric_field("image_poll_initial_wait_secs")
     image_poll_interval_secs: float = _numeric_field("image_poll_interval_secs")
     image_account_concurrency: int = _numeric_field("image_account_concurrency")
+    image_max_n: int = _numeric_field("image_max_n")
     account_processing_concurrency: int = _numeric_field("account_processing_concurrency")
     image_account_retry_enabled: bool = True
     image_upscale_enabled: bool = False
@@ -199,6 +200,7 @@ class _SettingsEditableFields(_StrictModel):
     image_remove_conversation_after_result: bool = False
     image_settle_enabled: bool = True
     image_settle_secs: float = _numeric_field("image_settle_secs")
+    gif_models: list[str] = Field(default_factory=list)
     auto_remove_invalid_accounts: bool = True
     auto_remove_rate_limited_accounts: bool = False
     log_levels: list[LogLevel] = Field(default_factory=list)
